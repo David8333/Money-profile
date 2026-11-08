@@ -1,0 +1,17 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# 個人記帳資料與備份檔案（保護隱私安全，嚴禁提交至 Git）
+*.csv
+*.tsv
+*.xlsx
+*.bak
+*backup*.json
+*finance_export*
+

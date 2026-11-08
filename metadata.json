@@ -1,0 +1,6 @@
+{
+  "name": "Personal Finance Manager",
+  "description": "個人財務管理系統 - 支援多幣別記帳、CSV 匯入、收支統計與 Supabase 雲端資料同步",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
