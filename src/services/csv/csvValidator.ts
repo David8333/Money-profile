@@ -15,7 +15,7 @@ import {
   generateTransactionFingerprint,
 } from './csvParser';
 import { DbCategory, DbAccount, DbMember } from '../../types/database';
-import { getMockImportRowSourcesStore } from '../backup/backupEngine';
+import { getMockImportRowSourcesStore, getMockImportBatchesStore } from '../backup/backupEngine';
 
 export interface ValidatedCsvRow extends RawParsedCsvRow {
   status: 'valid' | 'duplicate' | 'error';
@@ -52,17 +52,28 @@ async function fetchExistingSources(
   userId: string,
   uuids: string[],
   fingerprints: string[]
-): Promise<{ existingUuids: Set<string>; existingFingerprints: Set<string> }> {
+): Promise<{
+  existingUuids: Set<string>;
+  existingFingerprints: Set<string>;
+  existingFingerprintCounts: Map<string, number>;
+}> {
   const existingUuids = new Set<string>();
   const existingFingerprints = new Set<string>();
+  const existingFingerprintCounts = new Map<string, number>();
 
   if (!isSupabaseConfigured() || !userId || userId === 'mock-user') {
     const mockSources = getMockImportRowSourcesStore();
     mockSources.forEach(s => {
       if (s.source_uuid) existingUuids.add(s.source_uuid);
-      if (s.source_fingerprint) existingFingerprints.add(s.source_fingerprint);
+      if (s.source_fingerprint) {
+        existingFingerprints.add(s.source_fingerprint);
+        existingFingerprintCounts.set(
+          s.source_fingerprint,
+          (existingFingerprintCounts.get(s.source_fingerprint) || 0) + 1
+        );
+      }
     });
-    return { existingUuids, existingFingerprints };
+    return { existingUuids, existingFingerprints, existingFingerprintCounts };
   }
 
   try {
@@ -99,7 +110,13 @@ async function fetchExistingSources(
 
         if (!error && data) {
           (data as Array<{ source_fingerprint: string }>).forEach(r => {
-            if (r.source_fingerprint) existingFingerprints.add(r.source_fingerprint);
+            if (r.source_fingerprint) {
+              existingFingerprints.add(r.source_fingerprint);
+              existingFingerprintCounts.set(
+                r.source_fingerprint,
+                (existingFingerprintCounts.get(r.source_fingerprint) || 0) + 1
+              );
+            }
           });
         }
       }
@@ -108,7 +125,7 @@ async function fetchExistingSources(
     console.warn('查詢資料庫重複紀錄發生異常，將以檔案內去重為主:', err);
   }
 
-  return { existingUuids, existingFingerprints };
+  return { existingUuids, existingFingerprints, existingFingerprintCounts };
 }
 
 /**
@@ -118,7 +135,18 @@ async function checkExistingBatch(
   userId: string,
   fileHash: string
 ): Promise<{ id: string; createdAt: string; totalRows: number } | null> {
-  if (!isSupabaseConfigured() || !userId) return null;
+  if (!isSupabaseConfigured() || !userId || userId === 'mock-user') {
+    const mockBatches = getMockImportBatchesStore();
+    const existing = mockBatches.find(b => b.file_hash === fileHash && b.status === 'completed');
+    if (existing) {
+      return {
+        id: existing.id,
+        createdAt: existing.created_at,
+        totalRows: existing.total_rows,
+      };
+    }
+    return null;
+  }
 
   try {
     const { data, error } = await supabase
@@ -160,7 +188,7 @@ export async function validateAndDeduplicateCsv(
   const allUuids = parsedRows.map(r => r.uuid).filter((u): u is string => !!u);
   const allFingerprints = parsedRows.filter(r => !r.uuid).map(r => r.fingerprint);
 
-  const { existingUuids, existingFingerprints } = await fetchExistingSources(
+  const { existingUuids, existingFingerprints, existingFingerprintCounts } = await fetchExistingSources(
     userId || '',
     allUuids,
     allFingerprints
@@ -178,9 +206,9 @@ export async function validateAndDeduplicateCsv(
   const missingAccountsSet = new Set<string>();
   const missingMembersSet = new Set<string>();
 
-  // 檔案內已出現之 UUID 與無 UUID 指紋追蹤
+  // 檔案內已出現之 UUID 與無 UUID 指紋追蹤次數
   const seenFileUuids = new Set<string>();
-  const seenFileFingerprints = new Set<string>();
+  const fileFingerprintCounts = new Map<string, number>();
 
   let validCount = 0;
   let duplicateCount = 0;
@@ -214,7 +242,7 @@ export async function validateAndDeduplicateCsv(
 
     // 2. UUID 去重優先原則
     if (row.uuid) {
-      // 檢查是否已在資料庫中
+      // 檢查是否已在資料庫或歷史匯入來源中
       if (existingUuids.has(row.uuid)) {
         duplicateCount++;
         validatedRows.push({
@@ -255,13 +283,14 @@ export async function validateAndDeduplicateCsv(
       continue;
     }
 
-    // 3. 無 UUID 之交易指紋去重檢查
-    if (existingFingerprints.has(row.fingerprint)) {
+    // 3. 無 UUID 之交易去重檢查
+    // 若該檔案批次曾完整匯入過，自動判定為重複檔案批次
+    if (existingBatch) {
       duplicateCount++;
       validatedRows.push({
         ...row,
         status: 'duplicate',
-        statusReason: '無 UUID，但資料庫已存在完全相同的交易內容（交易指紋比對一致）',
+        statusReason: `此檔案先前已完整匯入過（批次編號 ${existingBatch.id.slice(0, 12)}），自動略過避免金額重複疊加`,
         isMissingCategory: isMissingCat,
         isMissingAccount: isMissingAcc,
         isMissingMember: isMissingMem,
@@ -269,14 +298,18 @@ export async function validateAndDeduplicateCsv(
       continue;
     }
 
-    // 無 UUID 時在同檔案內重複
-    if (seenFileFingerprints.has(row.fingerprint)) {
-      // 提示：不擅自直接拋棄，標記為重複並說明
+    // 計算本檔案目前出現該指紋的第幾次 (支援同一天、同金額、同分類的多筆真實消費)
+    const currentOccurrence = (fileFingerprintCounts.get(row.fingerprint) || 0) + 1;
+    fileFingerprintCounts.set(row.fingerprint, currentOccurrence);
+
+    const dbOccurrence = existingFingerprintCounts.get(row.fingerprint) || 0;
+    if (currentOccurrence <= dbOccurrence) {
+      // 歷史已存在對應次數的相同交易
       duplicateCount++;
       validatedRows.push({
         ...row,
         status: 'duplicate',
-        statusReason: '檔案內完全相同之重複紀錄（無 UUID）',
+        statusReason: '資料庫中已存在對應的歷史交易紀錄（指紋一致），自動略過避免重複累加',
         isMissingCategory: isMissingCat,
         isMissingAccount: isMissingAcc,
         isMissingMember: isMissingMem,
@@ -284,7 +317,7 @@ export async function validateAndDeduplicateCsv(
       continue;
     }
 
-    seenFileFingerprints.add(row.fingerprint);
+    // 合法新交易（包含同一天、同金額、同分類的額外合法交易）
     validCount++;
     validatedRows.push({
       ...row,
@@ -293,6 +326,7 @@ export async function validateAndDeduplicateCsv(
       isMissingAccount: isMissingAcc,
       isMissingMember: isMissingMem,
     });
+    continue;
   }
 
   return {

@@ -150,24 +150,28 @@ export function parseDirection(rawDirection: string): { type: TransactionType; i
  * 解析金額
  * 支援包含千分位、幣別符號、負號等。合法的 0 元金額保留。
  */
-export function parseAmount(rawAmount: any): { amount: number; isValid: boolean; error?: string } {
+export function parseAmount(rawAmount: any): { amount: number; isNegative: boolean; isValid: boolean; error?: string } {
   if (rawAmount === null || rawAmount === undefined || rawAmount === '') {
-    return { amount: 0, isValid: false, error: '金額為空' };
+    return { amount: 0, isNegative: false, isValid: false, error: '金額為空' };
   }
 
   // 清除常見干擾字元: $, NT$, 逗號, 空格
-  const clean = String(rawAmount)
+  let clean = String(rawAmount)
     .replace(/[$,NT¥€£\s]/g, '')
     .trim();
 
+  // 判斷負號或會計括號 (e.g. -500 或 (500))
+  const isNegative = clean.startsWith('-') || (clean.startsWith('(') && clean.endsWith(')'));
+  clean = clean.replace(/^[(-]/, '').replace(/[)]$/, '').trim();
+
   const num = Number(clean);
   if (isNaN(num)) {
-    return { amount: 0, isValid: false, error: `金額無法轉換為數值: "${rawAmount}"` };
+    return { amount: 0, isNegative: false, isValid: false, error: `金額無法轉換為數值: "${rawAmount}"` };
   }
 
-  // 保持精確度至小數點第 4 位 (對齊 NUMERIC(15, 4))
-  const precisionAmount = Math.round(num * 10000) / 10000;
-  return { amount: precisionAmount, isValid: true };
+  // 保持精確度至小數點第 4 位 (對齊 NUMERIC(15, 4))，金額一律為非負數值
+  const precisionAmount = Math.abs(Math.round(num * 10000) / 10000);
+  return { amount: precisionAmount, isNegative, isValid: true };
 }
 
 /**
@@ -258,15 +262,17 @@ export async function parseCsvContent(
           const rawMember = columnMap.member ? record[columnMap.member] : '自己';
           const rawAccount = columnMap.account ? record[columnMap.account] : '未指定帳戶';
           const rawNote = columnMap.note ? record[columnMap.note] : '';
-          const rawDirection = columnMap.direction ? record[columnMap.direction] : '支';
+          const rawDirection = columnMap.direction ? record[columnMap.direction] : '';
           const rawUuid = columnMap.uuid ? record[columnMap.uuid] : '';
 
           // 日期解析
           const dateResult = parseDateString(rawDate);
-          // 收支解析
-          const directionResult = parseDirection(rawDirection);
           // 金額解析
           const amountResult = parseAmount(rawAmount);
+          // 收支解析：若有收支欄位則以欄位為主；若無收支欄位則依金額正負號判斷
+          const directionResult = columnMap.direction && cleanString(rawDirection)
+            ? parseDirection(rawDirection)
+            : { type: (amountResult.isNegative ? 'expense' : 'income') as TransactionType, isValid: true };
 
           // 錯誤收集
           const rowErrors: string[] = [];

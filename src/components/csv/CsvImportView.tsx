@@ -240,9 +240,15 @@ export const CsvImportView: React.FC<CsvImportViewProps> = ({ onNavigateToTab })
         isOpen={isImportModalOpen}
         progress={importProgress}
         result={importResult}
-        onClose={() => setIsImportModalOpen(false)}
+        onClose={() => {
+          setIsImportModalOpen(false);
+          if (importResult?.success) {
+            handleReset();
+          }
+        }}
         onGoToTransactions={() => {
           setIsImportModalOpen(false);
+          handleReset();
           onNavigateToTab('transactions');
         }}
       />

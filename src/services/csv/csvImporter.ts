@@ -167,10 +167,14 @@ export async function executeCsvImport(
     const existingTxs = getMockTransactionsStore();
     const existingSources = getMockImportRowSourcesStore();
 
+    // 執行階段終極防呆：再次排除已存在於現有來源庫的 UUID
+    const existingUuidSet = new Set(existingSources.map(s => s.source_uuid).filter(Boolean));
+    const safeRowsToImport = validRows.filter(r => !r.uuid || !existingUuidSet.has(r.uuid));
+
     const newTxs: EnrichedTransaction[] = [];
     const newSources: DbImportRowSource[] = [];
 
-    for (const row of validRows) {
+    for (const row of safeRowsToImport) {
       const txId = `tx-csv-${Date.now()}-${Math.random().toString(36).substr(2, 7)}`;
       const cat = catMap.get(row.category.trim().toLowerCase()) || null;
       const acc = accMap.get(row.account.trim().toLowerCase()) || (currentAccs[0] || null);

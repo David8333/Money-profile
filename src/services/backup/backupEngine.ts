@@ -27,9 +27,10 @@ import { getMockCategoriesStore } from '../supabase/categories';
 import { getMockAccountsStore } from '../supabase/accounts';
 import { getMockMembersStore } from '../supabase/members';
 import { getMockTransactionsStore } from '../supabase/transactions';
+import { loadMockData, saveMockData } from '../mock/mockPersistence';
 
-// Mock Import Batches & Row Sources Store
-let mockImportBatchesStore: DbImportBatch[] = [
+// Default Mock Seed Batches & Row Sources
+export const DEFAULT_MOCK_BATCHES: DbImportBatch[] = [
   {
     id: 'batch-mock-01',
     user_id: 'mock-user',
@@ -44,7 +45,7 @@ let mockImportBatchesStore: DbImportBatch[] = [
   },
 ];
 
-let mockImportRowSourcesStore: DbImportRowSource[] = [
+export const DEFAULT_MOCK_ROW_SOURCES: DbImportRowSource[] = [
   {
     id: 'source-mock-01',
     user_id: 'mock-user',
@@ -65,12 +66,16 @@ let mockImportRowSourcesStore: DbImportRowSource[] = [
   },
 ];
 
+let mockImportBatchesStore: DbImportBatch[] = loadMockData('fin_mock_batches', DEFAULT_MOCK_BATCHES);
+let mockImportRowSourcesStore: DbImportRowSource[] = loadMockData('fin_mock_sources', DEFAULT_MOCK_ROW_SOURCES);
+
 export function getMockImportBatchesStore(): DbImportBatch[] {
   return [...mockImportBatchesStore];
 }
 
 export function setMockImportBatchesStore(store: DbImportBatch[]) {
   mockImportBatchesStore = [...store];
+  saveMockData('fin_mock_batches', mockImportBatchesStore);
 }
 
 export function getMockImportRowSourcesStore(): DbImportRowSource[] {
@@ -79,6 +84,7 @@ export function getMockImportRowSourcesStore(): DbImportRowSource[] {
 
 export function setMockImportRowSourcesStore(store: DbImportRowSource[]) {
   mockImportRowSourcesStore = [...store];
+  saveMockData('fin_mock_sources', mockImportRowSourcesStore);
 }
 
 /**

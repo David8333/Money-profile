@@ -22,6 +22,7 @@ import {
   FileSpreadsheet,
   Check,
   X,
+  Trash2,
 } from 'lucide-react';
 import {
   generateBackupData,
@@ -43,6 +44,7 @@ import {
 } from '../../services/backup/__tests__/backupTestSuite';
 import { useAuth } from '../../hooks/useAuth';
 import { useSupabaseConfig } from '../../hooks/useSupabaseConfig';
+import { ResetTransactionsModal } from './ResetTransactionsModal';
 
 interface BackupRestoreViewProps {
   onNavigateToTab: (tab: string) => void;
@@ -54,6 +56,9 @@ export const BackupRestoreView: React.FC<BackupRestoreViewProps> = ({
   const { user } = useAuth();
   const { isConfigured } = useSupabaseConfig();
   const currentUserId = user?.id || 'mock-user';
+
+  // 全部重置狀態
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   // 匯出狀態
   const [isExporting, setIsExporting] = useState(false);
@@ -685,6 +690,45 @@ export const BackupRestoreView: React.FC<BackupRestoreViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* 第三區塊：全部記帳資料重置（安全清除與重新開始） */}
+      <div className="bg-white rounded-2xl border border-rose-200 p-6 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start space-x-3.5">
+            <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900">
+                  全部記帳資料重置
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-800">
+                  清除所有交易
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
+                一鍵清除所有收入、支出、轉帳紀錄與 CSV 匯入去重來源，讓您重新開始記帳。
+                系統將<strong>完整保留</strong>您的帳戶資產、分類、成員、幣別、匯率與年度預算設定。
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsResetModalOpen(true)}
+            className="inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>重置所有記帳資料</span>
+          </button>
+        </div>
+      </div>
+
+      <ResetTransactionsModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        userId={user?.id}
+      />
     </div>
   );
 };
