@@ -15,6 +15,7 @@ import { Phase1Dashboard } from './components/phases/Phase1Dashboard';
 import { useSupabaseConfig } from './hooks/useSupabaseConfig';
 import { useAuth } from './hooks/useAuth';
 import { CategoryAccountMemberView } from './components/management/CategoryAccountMemberView';
+import { PersonalCfoView } from './components/cfo/PersonalCfoView';
 import {
   FileSpreadsheet,
   ReceiptText,
@@ -39,6 +40,12 @@ export default function App() {
     >
       {currentTab === 'overview' && (
         <DashboardView
+          onNavigateToTab={(tab) => setCurrentTab(tab as NavTab)}
+        />
+      )}
+
+      {currentTab === 'cfo' && (
+        <PersonalCfoView
           onNavigateToTab={(tab) => setCurrentTab(tab as NavTab)}
         />
       )}

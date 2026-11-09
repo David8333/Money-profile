@@ -4,7 +4,8 @@ import {
   ReceiptText,
   PlusCircle,
   FileSpreadsheet,
-  Settings
+  Settings,
+  Building2
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
 
@@ -16,6 +17,7 @@ interface MobileNavProps {
 export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onSelectTab }) => {
   const mobileItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: '總覽', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { id: 'cfo', label: '經營中心', icon: <Building2 className="w-5 h-5" /> },
     { id: 'transactions', label: '明細', icon: <ReceiptText className="w-5 h-5" /> },
     { id: 'add', label: '記帳', icon: <PlusCircle className="w-6 h-6 text-emerald-500" /> },
     { id: 'import', label: 'CSV', icon: <FileSpreadsheet className="w-5 h-5" /> },

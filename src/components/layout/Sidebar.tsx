@@ -10,11 +10,13 @@ import {
   Settings,
   ChevronRight,
   Database,
-  Sparkles
+  Sparkles,
+  Building2
 } from 'lucide-react';
 
 export type NavTab =
   | 'overview'
+  | 'cfo'
   | 'transactions'
   | 'add'
   | 'import'
@@ -38,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'overview', label: '財務總覽', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'cfo', label: '財務經營中心', icon: <Building2 className="w-4 h-4" />, badge: 'CFO' },
     { id: 'transactions', label: '交易明細', icon: <ReceiptText className="w-4 h-4" /> },
     { id: 'add', label: '新增記帳', icon: <PlusCircle className="w-4 h-4" /> },
     { id: 'import', label: 'CSV 匯入', icon: <FileSpreadsheet className="w-4 h-4" />, badge: '智慧解析' },
